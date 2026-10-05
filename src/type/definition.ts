@@ -1412,12 +1412,15 @@ export class GraphQLEnumType /* <T> */ {
     return enumValue.name;
   }
 
-  parseValue(inputValue: unknown): Maybe<any> /* T */ {
+  parseValue(
+    inputValue: unknown,
+    options?: { hideSuggestions?: boolean },
+  ): Maybe<any> /* T */ {
     if (typeof inputValue !== 'string') {
       const valueStr = inspect(inputValue);
       throw new GraphQLError(
         `Enum "${this.name}" cannot represent non-string value: ${valueStr}.` +
-          didYouMeanEnumValue(this, valueStr),
+          (options?.hideSuggestions ? '' : didYouMeanEnumValue(this, valueStr)),
       );
     }
 
@@ -1425,7 +1428,9 @@ export class GraphQLEnumType /* <T> */ {
     if (enumValue == null) {
       throw new GraphQLError(
         `Value "${inputValue}" does not exist in "${this.name}" enum.` +
-          didYouMeanEnumValue(this, inputValue),
+          (options?.hideSuggestions
+            ? ''
+            : didYouMeanEnumValue(this, inputValue)),
       );
     }
     return enumValue.value;
@@ -1434,13 +1439,14 @@ export class GraphQLEnumType /* <T> */ {
   parseLiteral(
     valueNode: ValueNode,
     _variables: Maybe<ObjMap<unknown>>,
+    options?: { hideSuggestions?: boolean },
   ): Maybe<any> /* T */ {
     // Note: variables will be resolved to a value before calling this function.
     if (valueNode.kind !== Kind.ENUM) {
       const valueStr = print(valueNode);
       throw new GraphQLError(
         `Enum "${this.name}" cannot represent non-enum value: ${valueStr}.` +
-          didYouMeanEnumValue(this, valueStr),
+          (options?.hideSuggestions ? '' : didYouMeanEnumValue(this, valueStr)),
         { nodes: valueNode },
       );
     }
@@ -1450,7 +1456,7 @@ export class GraphQLEnumType /* <T> */ {
       const valueStr = print(valueNode);
       throw new GraphQLError(
         `Value "${valueStr}" does not exist in "${this.name}" enum.` +
-          didYouMeanEnumValue(this, valueStr),
+          (options?.hideSuggestions ? '' : didYouMeanEnumValue(this, valueStr)),
         { nodes: valueNode },
       );
     }

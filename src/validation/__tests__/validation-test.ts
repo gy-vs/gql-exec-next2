@@ -5,7 +5,7 @@ import { expectJSON } from '../../__testUtils__/expectJSON';
 
 import { GraphQLError } from '../../error/GraphQLError';
 
-import type { DirectiveNode } from '../../language/ast';
+import type { DirectiveNode, FieldNode } from '../../language/ast';
 import { parse } from '../../language/parser';
 
 import { buildSchema } from '../../utilities/buildASTSchema';
@@ -177,5 +177,198 @@ describe('Validate: Limit maximum number of validation errors', () => {
     expect(() =>
       validate(testSchema, doc, [customRule], { maxErrors: 1 }),
     ).to.throw(/^Error from custom rule!$/);
+  });
+});
+
+describe('Validate: Hide suggestions', () => {
+  function validateDocument(
+    queryStr: string,
+    options?: { hideSuggestions?: boolean },
+  ) {
+    return validate(testSchema, parse(queryStr), undefined, options);
+  }
+
+  it('hides field name suggestions', () => {
+    const queryStr = '{ humn }';
+
+    expectJSON(validateDocument(queryStr)).toDeepEqual([
+      {
+        message:
+          'Cannot query field "humn" on type "QueryRoot". Did you mean "human"?',
+        locations: [{ line: 1, column: 3 }],
+      },
+    ]);
+
+    expectJSON(
+      validateDocument(queryStr, { hideSuggestions: true }),
+    ).toDeepEqual([
+      {
+        message: 'Cannot query field "humn" on type "QueryRoot".',
+        locations: [{ line: 1, column: 3 }],
+      },
+    ]);
+  });
+
+  it('hides argument name suggestions', () => {
+    const queryStr = '{ dog { name(surnme: true) } }';
+
+    expectJSON(validateDocument(queryStr)).toDeepEqual([
+      {
+        message:
+          'Unknown argument "surnme" on field "Dog.name". Did you mean "surname"?',
+        locations: [{ line: 1, column: 14 }],
+      },
+    ]);
+
+    expectJSON(
+      validateDocument(queryStr, { hideSuggestions: true }),
+    ).toDeepEqual([
+      {
+        message: 'Unknown argument "surnme" on field "Dog.name".',
+        locations: [{ line: 1, column: 14 }],
+      },
+    ]);
+  });
+
+  it('hides directive argument name suggestions', () => {
+    const schema = buildSchema(`
+      directive @myDirective(optArg: String) on FIELD
+
+      type Query {
+        foo: String
+      }
+    `);
+    const doc = parse('{ foo @myDirective(optArgg: "x") }');
+
+    expectJSON(validate(schema, doc)).toDeepEqual([
+      {
+        message:
+          'Unknown argument "optArgg" on directive "@myDirective". Did you mean "optArg"?',
+        locations: [{ line: 1, column: 20 }],
+      },
+    ]);
+
+    expectJSON(
+      validate(schema, doc, undefined, { hideSuggestions: true }),
+    ).toDeepEqual([
+      {
+        message: 'Unknown argument "optArgg" on directive "@myDirective".',
+        locations: [{ line: 1, column: 20 }],
+      },
+    ]);
+  });
+
+  it('hides type name suggestions', () => {
+    const queryStr = '{ dog { ... on Dogg { name } } }';
+
+    expectJSON(validateDocument(queryStr)).toDeepEqual([
+      {
+        message: 'Unknown type "Dogg". Did you mean "Dog"?',
+        locations: [{ line: 1, column: 16 }],
+      },
+    ]);
+
+    expectJSON(
+      validateDocument(queryStr, { hideSuggestions: true }),
+    ).toDeepEqual([
+      {
+        message: 'Unknown type "Dogg".',
+        locations: [{ line: 1, column: 16 }],
+      },
+    ]);
+  });
+
+  it('hides input object field suggestions', () => {
+    const queryStr =
+      '{ complicatedArgs { complexArgField(complexArg: { requiredField: true, intFild: 3 }) } }';
+
+    expectJSON(validateDocument(queryStr)).toDeepEqual([
+      {
+        message:
+          'Field "intFild" is not defined by type "ComplexInput". Did you mean "intField"?',
+        locations: [{ line: 1, column: 72 }],
+      },
+    ]);
+
+    expectJSON(
+      validateDocument(queryStr, { hideSuggestions: true }),
+    ).toDeepEqual([
+      {
+        message: 'Field "intFild" is not defined by type "ComplexInput".',
+        locations: [{ line: 1, column: 72 }],
+      },
+    ]);
+  });
+
+  it('hides enum value suggestions', () => {
+    const queryStr = '{ dog { doesKnowCommand(dogCommand: SITZ) } }';
+
+    expectJSON(validateDocument(queryStr)).toDeepEqual([
+      {
+        message:
+          'Value "SITZ" does not exist in "DogCommand" enum. Did you mean the enum value "SIT"?',
+        locations: [{ line: 1, column: 37 }],
+      },
+    ]);
+
+    expectJSON(
+      validateDocument(queryStr, { hideSuggestions: true }),
+    ).toDeepEqual([
+      {
+        message: 'Value "SITZ" does not exist in "DogCommand" enum.',
+        locations: [{ line: 1, column: 37 }],
+      },
+    ]);
+  });
+
+  it('keeps suggestions when hideSuggestions is false', () => {
+    expectJSON(
+      validateDocument('{ humn }', { hideSuggestions: false }),
+    ).toDeepEqual([
+      {
+        message:
+          'Cannot query field "humn" on type "QueryRoot". Did you mean "human"?',
+        locations: [{ line: 1, column: 3 }],
+      },
+    ]);
+  });
+
+  it('exposes hideSuggestions to custom rules', () => {
+    const schema = buildSchema(`
+      type Query {
+        foo: String
+      }
+    `);
+    const doc = parse('{ foo }');
+
+    function customRule(context: ValidationContext) {
+      return {
+        Field(node: FieldNode) {
+          context.reportError(
+            new GraphQLError(
+              'Custom error.' +
+                (context.hideSuggestions ? '' : ' Did you mean "bar"?'),
+              { nodes: node },
+            ),
+          );
+        },
+      };
+    }
+
+    expectJSON(validate(schema, doc, [customRule])).toDeepEqual([
+      {
+        message: 'Custom error. Did you mean "bar"?',
+        locations: [{ line: 1, column: 3 }],
+      },
+    ]);
+
+    expectJSON(
+      validate(schema, doc, [customRule], { hideSuggestions: true }),
+    ).toDeepEqual([
+      {
+        message: 'Custom error.',
+        locations: [{ line: 1, column: 3 }],
+      },
+    ]);
   });
 });

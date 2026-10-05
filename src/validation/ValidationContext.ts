@@ -43,6 +43,7 @@ interface VariableUsage {
 export class ASTValidationContext {
   private _ast: DocumentNode;
   private _onError: (error: GraphQLError) => void;
+  private _hideSuggestions: boolean;
   private _fragments: ObjMap<FragmentDefinitionNode> | undefined;
   private _fragmentSpreads: Map<SelectionSetNode, Array<FragmentSpreadNode>>;
   private _recursivelyReferencedFragments: Map<
@@ -50,16 +51,30 @@ export class ASTValidationContext {
     Array<FragmentDefinitionNode>
   >;
 
-  constructor(ast: DocumentNode, onError: (error: GraphQLError) => void) {
+  constructor(
+    ast: DocumentNode,
+    onError: (error: GraphQLError) => void,
+    hideSuggestions: boolean = false,
+  ) {
     this._ast = ast;
     this._fragments = undefined;
     this._fragmentSpreads = new Map();
     this._recursivelyReferencedFragments = new Map();
     this._onError = onError;
+    this._hideSuggestions = hideSuggestions;
   }
 
   get [Symbol.toStringTag]() {
     return 'ASTValidationContext';
+  }
+
+  /**
+   * When true, validation rules should not include "did you mean" style
+   * suggestions in the reported errors. Custom rules may read this flag to
+   * decide how to build their own error messages.
+   */
+  get hideSuggestions(): boolean {
+    return this._hideSuggestions;
   }
 
   reportError(error: GraphQLError): void {
@@ -179,8 +194,9 @@ export class ValidationContext extends ASTValidationContext {
     ast: DocumentNode,
     typeInfo: TypeInfo,
     onError: (error: GraphQLError) => void,
+    hideSuggestions: boolean = false,
   ) {
-    super(ast, onError);
+    super(ast, onError, hideSuggestions);
     this._schema = schema;
     this._typeInfo = typeInfo;
     this._variableUsages = new Map();

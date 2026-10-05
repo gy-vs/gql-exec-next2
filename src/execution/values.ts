@@ -40,10 +40,11 @@ export function getVariableValues(
   schema: GraphQLSchema,
   varDefNodes: ReadonlyArray<VariableDefinitionNode>,
   inputs: { readonly [variable: string]: unknown },
-  options?: { maxErrors?: number },
+  options?: { maxErrors?: number; hideSuggestions?: boolean },
 ): CoercedVariableValues {
   const errors = [];
   const maxErrors = options?.maxErrors;
+  const hideSuggestions = options?.hideSuggestions ?? false;
   try {
     const coerced = coerceVariableValues(
       schema,
@@ -57,6 +58,7 @@ export function getVariableValues(
         }
         errors.push(error);
       },
+      hideSuggestions,
     );
 
     if (errors.length === 0) {
@@ -74,6 +76,7 @@ function coerceVariableValues(
   varDefNodes: ReadonlyArray<VariableDefinitionNode>,
   inputs: { readonly [variable: string]: unknown },
   onError: (error: GraphQLError) => void,
+  hideSuggestions: boolean,
 ): { [variable: string]: unknown } {
   const coercedValues: { [variable: string]: unknown } = {};
   for (const varDefNode of varDefNodes) {
@@ -135,6 +138,7 @@ function coerceVariableValues(
           }),
         );
       },
+      { hideSuggestions },
     );
   }
 

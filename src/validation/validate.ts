@@ -32,6 +32,10 @@ import { SDLValidationContext, ValidationContext } from './ValidationContext';
  * Attackers can send pathologically invalid queries to induce a DoS attack,
  * so by default `maxErrors` set to 100 errors.
  *
+ * If `hideSuggestions` is enabled, the reported errors will not include
+ * "did you mean" style suggestions, which could otherwise leak schema
+ * information to potential attackers.
+ *
  * Optionally a custom TypeInfo instance may be provided. If not provided, one
  * will be created from the provided schema.
  */
@@ -39,12 +43,13 @@ export function validate(
   schema: GraphQLSchema,
   documentAST: DocumentNode,
   rules: ReadonlyArray<ValidationRule> = specifiedRules,
-  options?: { maxErrors?: number },
+  options?: { maxErrors?: number; hideSuggestions?: boolean },
 
   /** @deprecated will be removed in 17.0.0 */
   typeInfo: TypeInfo = new TypeInfo(schema),
 ): ReadonlyArray<GraphQLError> {
   const maxErrors = options?.maxErrors ?? 100;
+  const hideSuggestions = options?.hideSuggestions ?? false;
 
   devAssert(documentAST, 'Must provide document.');
   // If the schema used for validation is invalid, throw an error.
@@ -68,6 +73,7 @@ export function validate(
       }
       errors.push(error);
     },
+    hideSuggestions,
   );
 
   // This uses a specialized visitor which runs multiple visitors in parallel,

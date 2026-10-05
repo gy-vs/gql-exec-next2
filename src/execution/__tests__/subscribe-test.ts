@@ -9,7 +9,11 @@ import { isAsyncIterable } from '../../jsutils/isAsyncIterable';
 
 import { parse } from '../../language/parser';
 
-import { GraphQLList, GraphQLObjectType } from '../../type/definition';
+import {
+  GraphQLEnumType,
+  GraphQLList,
+  GraphQLObjectType,
+} from '../../type/definition';
 import { GraphQLBoolean, GraphQLInt, GraphQLString } from '../../type/scalars';
 import { GraphQLSchema } from '../../type/schema';
 
@@ -1076,6 +1080,69 @@ describe('Subscription Publish Phase', () => {
     expect(await subscription.next()).to.deep.equal({
       done: true,
       value: undefined,
+    });
+  });
+});
+
+describe('Subscription: hideSuggestions', () => {
+  const TestEnum = new GraphQLEnumType({
+    name: 'TestEnum',
+    values: { RED: {}, GREEN: {} },
+  });
+
+  const schema = new GraphQLSchema({
+    query: DummyQueryType,
+    subscription: new GraphQLObjectType({
+      name: 'Subscription',
+      fields: {
+        foo: {
+          type: GraphQLString,
+          args: { color: { type: TestEnum } },
+        },
+      },
+    }),
+  });
+
+  const document = parse(`
+    subscription ($color: TestEnum) {
+      foo(color: $color)
+    }
+  `);
+
+  it('includes suggestions in variable errors by default', async () => {
+    const result = await subscribe({
+      schema,
+      document,
+      variableValues: { color: 'RDE' },
+    });
+
+    expectJSON(result).toDeepEqual({
+      errors: [
+        {
+          message:
+            'Variable "$color" got invalid value "RDE"; Value "RDE" does not exist in "TestEnum" enum. Did you mean the enum value "RED"?',
+          locations: [{ line: 2, column: 19 }],
+        },
+      ],
+    });
+  });
+
+  it('omits suggestions in variable errors when hideSuggestions is enabled', async () => {
+    const result = await subscribe({
+      schema,
+      document,
+      variableValues: { color: 'RDE' },
+      hideSuggestions: true,
+    });
+
+    expectJSON(result).toDeepEqual({
+      errors: [
+        {
+          message:
+            'Variable "$color" got invalid value "RDE"; Value "RDE" does not exist in "TestEnum" enum.',
+          locations: [{ line: 2, column: 19 }],
+        },
+      ],
     });
   });
 });

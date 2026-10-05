@@ -1077,4 +1077,126 @@ describe('Execute: Handles inputs', () => {
       });
     });
   });
+
+  describe('getVariableValues: hide suggestions', () => {
+    const doc = parse(`
+      query ($enumInput: TestEnum, $objectInput: TestInputObject) {
+        enum: fieldWithEnumInput(input: $enumInput)
+        object: fieldWithObjectInput(input: $objectInput)
+      }
+    `);
+
+    const operation = doc.definitions[0];
+    invariant(operation.kind === Kind.OPERATION_DEFINITION);
+    const { variableDefinitions } = operation;
+    invariant(variableDefinitions != null);
+
+    const inputValue = {
+      enumInput: 'CUSTO',
+      objectInput: { aa: 'foo', c: 'bar' },
+    };
+
+    function enumValueError(suggestion: string) {
+      return {
+        message:
+          'Variable "$enumInput" got invalid value "CUSTO"; Value "CUSTO" does not exist in "TestEnum" enum.' +
+          suggestion,
+        locations: [{ line: 2, column: 14 }],
+      };
+    }
+
+    function objectFieldError(suggestion: string) {
+      return {
+        message:
+          'Variable "$objectInput" got invalid value { aa: "foo", c: "bar" }; Field "aa" is not defined by type "TestInputObject".' +
+          suggestion,
+        locations: [{ line: 2, column: 36 }],
+      };
+    }
+
+    it('includes suggestions by default', () => {
+      const result = getVariableValues(schema, variableDefinitions, inputValue);
+
+      expectJSON(result).toDeepEqual({
+        errors: [
+          enumValueError(' Did you mean the enum value "CUSTOM"?'),
+          objectFieldError(' Did you mean "a"?'),
+        ],
+      });
+    });
+
+    it('includes suggestions when hideSuggestions is false', () => {
+      const result = getVariableValues(
+        schema,
+        variableDefinitions,
+        inputValue,
+        { hideSuggestions: false },
+      );
+
+      expectJSON(result).toDeepEqual({
+        errors: [
+          enumValueError(' Did you mean the enum value "CUSTOM"?'),
+          objectFieldError(' Did you mean "a"?'),
+        ],
+      });
+    });
+
+    it('omits suggestions when hideSuggestions is enabled', () => {
+      const result = getVariableValues(
+        schema,
+        variableDefinitions,
+        inputValue,
+        { hideSuggestions: true },
+      );
+
+      expectJSON(result).toDeepEqual({
+        errors: [enumValueError(''), objectFieldError('')],
+      });
+    });
+  });
+
+  describe('Execute: hide suggestions in variable errors', () => {
+    const doc = parse(`
+      query ($input: TestEnum) {
+        fieldWithEnumInput(input: $input)
+      }
+    `);
+
+    it('includes suggestions by default', () => {
+      const result = executeSync({
+        schema,
+        document: doc,
+        variableValues: { input: 'CUSTO' },
+      });
+
+      expectJSON(result).toDeepEqual({
+        errors: [
+          {
+            message:
+              'Variable "$input" got invalid value "CUSTO"; Value "CUSTO" does not exist in "TestEnum" enum. Did you mean the enum value "CUSTOM"?',
+            locations: [{ line: 2, column: 14 }],
+          },
+        ],
+      });
+    });
+
+    it('omits suggestions when hideSuggestions is enabled', () => {
+      const result = executeSync({
+        schema,
+        document: doc,
+        variableValues: { input: 'CUSTO' },
+        hideSuggestions: true,
+      });
+
+      expectJSON(result).toDeepEqual({
+        errors: [
+          {
+            message:
+              'Variable "$input" got invalid value "CUSTO"; Value "CUSTO" does not exist in "TestEnum" enum.',
+            locations: [{ line: 2, column: 14 }],
+          },
+        ],
+      });
+    });
+  });
 });
