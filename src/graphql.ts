@@ -56,6 +56,11 @@ import { execute } from './execution/execute';
  *    A type resolver function to use when none is provided by the schema.
  *    If not provided, the default type resolver is used (which looks for a
  *    `__typename` field or alternatively calls the `isTypeOf` method).
+ * hideSuggestions:
+ *    If set to `true`, any "Did you mean ...?" suggestions will be omitted
+ *    from the messages of errors produced during both validation and
+ *    execution. This can be used to avoid exposing schema details (such as
+ *    field, argument, type or enum value names) through error messages.
  */
 export interface GraphQLArgs {
   schema: GraphQLSchema;
@@ -66,6 +71,7 @@ export interface GraphQLArgs {
   operationName?: Maybe<string>;
   fieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
+  hideSuggestions?: Maybe<boolean>;
 }
 
 export function graphql(args: GraphQLArgs): Promise<ExecutionResult> {
@@ -106,6 +112,7 @@ function graphqlImpl(args: GraphQLArgs): PromiseOrValue<ExecutionResult> {
     operationName,
     fieldResolver,
     typeResolver,
+    hideSuggestions,
   } = args;
 
   // Validate Schema
@@ -123,7 +130,9 @@ function graphqlImpl(args: GraphQLArgs): PromiseOrValue<ExecutionResult> {
   }
 
   // Validate
-  const validationErrors = validate(schema, document);
+  const validationErrors = validate(schema, document, undefined, {
+    hideSuggestions: hideSuggestions ?? false,
+  });
   if (validationErrors.length > 0) {
     return { errors: validationErrors };
   }
@@ -138,5 +147,6 @@ function graphqlImpl(args: GraphQLArgs): PromiseOrValue<ExecutionResult> {
     operationName,
     fieldResolver,
     typeResolver,
+    hideSuggestions,
   });
 }

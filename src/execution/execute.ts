@@ -152,6 +152,7 @@ export interface ExecutionArgs {
   fieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
   typeResolver?: Maybe<GraphQLTypeResolver<any, any>>;
   subscribeFieldResolver?: Maybe<GraphQLFieldResolver<any, any>>;
+  hideSuggestions?: Maybe<boolean>;
 }
 
 /**
@@ -286,6 +287,7 @@ export function buildExecutionContext(
     fieldResolver,
     typeResolver,
     subscribeFieldResolver,
+    hideSuggestions,
   } = args;
 
   let operation: OperationDefinitionNode | undefined;
@@ -329,7 +331,7 @@ export function buildExecutionContext(
     schema,
     variableDefinitions,
     rawVariableValues ?? {},
-    { maxErrors: 50 },
+    { maxErrors: 50, hideSuggestions: hideSuggestions ?? false },
   );
 
   if (coercedVariableValues.errors) {

@@ -41,6 +41,8 @@ interface VariableUsage {
  * validation rule.
  */
 export class ASTValidationContext {
+  readonly hideSuggestions: boolean;
+
   private _ast: DocumentNode;
   private _onError: (error: GraphQLError) => void;
   private _fragments: ObjMap<FragmentDefinitionNode> | undefined;
@@ -50,7 +52,12 @@ export class ASTValidationContext {
     Array<FragmentDefinitionNode>
   >;
 
-  constructor(ast: DocumentNode, onError: (error: GraphQLError) => void) {
+  constructor(
+    ast: DocumentNode,
+    onError: (error: GraphQLError) => void,
+    hideSuggestions: boolean = false,
+  ) {
+    this.hideSuggestions = hideSuggestions;
     this._ast = ast;
     this._fragments = undefined;
     this._fragmentSpreads = new Map();
@@ -146,7 +153,7 @@ export class SDLValidationContext extends ASTValidationContext {
     schema: Maybe<GraphQLSchema>,
     onError: (error: GraphQLError) => void,
   ) {
-    super(ast, onError);
+    super(ast, onError, false);
     this._schema = schema;
   }
 
@@ -179,8 +186,9 @@ export class ValidationContext extends ASTValidationContext {
     ast: DocumentNode,
     typeInfo: TypeInfo,
     onError: (error: GraphQLError) => void,
+    hideSuggestions: boolean = false,
   ) {
-    super(ast, onError);
+    super(ast, onError, hideSuggestions);
     this._schema = schema;
     this._typeInfo = typeInfo;
     this._variableUsages = new Map();

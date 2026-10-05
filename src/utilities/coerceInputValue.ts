@@ -31,8 +31,15 @@ export function coerceInputValue(
   inputValue: unknown,
   type: GraphQLInputType,
   onError: OnErrorCB = defaultOnError,
+  hideSuggestions: boolean = false,
 ): unknown {
-  return coerceInputValueImpl(inputValue, type, onError, undefined);
+  return coerceInputValueImpl(
+    inputValue,
+    type,
+    onError,
+    hideSuggestions,
+    undefined,
+  );
 }
 
 function defaultOnError(
@@ -52,11 +59,18 @@ function coerceInputValueImpl(
   inputValue: unknown,
   type: GraphQLInputType,
   onError: OnErrorCB,
+  hideSuggestions: boolean,
   path: Path | undefined,
 ): unknown {
   if (isNonNullType(type)) {
     if (inputValue != null) {
-      return coerceInputValueImpl(inputValue, type.ofType, onError, path);
+      return coerceInputValueImpl(
+        inputValue,
+        type.ofType,
+        onError,
+        hideSuggestions,
+        path,
+      );
     }
     onError(
       pathToArray(path),
@@ -78,11 +92,25 @@ function coerceInputValueImpl(
     if (isIterableObject(inputValue)) {
       return Array.from(inputValue, (itemValue, index) => {
         const itemPath = addPath(path, index, undefined);
-        return coerceInputValueImpl(itemValue, itemType, onError, itemPath);
+        return coerceInputValueImpl(
+          itemValue,
+          itemType,
+          onError,
+          hideSuggestions,
+          itemPath,
+        );
       });
     }
     // Lists accept a non-list value as a list of one.
-    return [coerceInputValueImpl(inputValue, itemType, onError, path)];
+    return [
+      coerceInputValueImpl(
+        inputValue,
+        itemType,
+        onError,
+        hideSuggestions,
+        path,
+      ),
+    ];
   }
 
   if (isInputObjectType(type)) {
@@ -121,6 +149,7 @@ function coerceInputValueImpl(
         fieldValue,
         field.type,
         onError,
+        hideSuggestions,
         addPath(path, field.name, type.name),
       );
     }
@@ -128,10 +157,12 @@ function coerceInputValueImpl(
     // Ensure every provided field is defined.
     for (const fieldName of Object.keys(inputValue)) {
       if (!fieldDefs[fieldName]) {
-        const suggestions = suggestionList(
-          fieldName,
-          Object.keys(type.getFields()),
-        );
+        const suggestions = hideSuggestions
+          ? []
+          : suggestionList(
+              fieldName,
+              Object.keys(type.getFields()),
+            );
         onError(
           pathToArray(path),
           inputValue,
@@ -152,7 +183,7 @@ function coerceInputValueImpl(
     // which can throw to indicate failure. If it throws, maintain a reference
     // to the original error.
     try {
-      parseResult = type.parseValue(inputValue);
+      parseResult = type.parseValue(inputValue, hideSuggestions);
     } catch (error) {
       if (error instanceof GraphQLError) {
         onError(pathToArray(path), inputValue, error);

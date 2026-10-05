@@ -35,9 +35,13 @@ export function ScalarLeafsRule(context: ValidationContext): ASTVisitor {
         } else if (!selectionSet) {
           const fieldName = node.name.value;
           const typeStr = inspect(type);
+          const suggestion = context.hideSuggestions
+            ? ''
+            : ` Did you mean "${fieldName} { ... }"?`;
           context.reportError(
             new GraphQLError(
-              `Field "${fieldName}" of type "${typeStr}" must have a selection of subfields. Did you mean "${fieldName} { ... }"?`,
+              `Field "${fieldName}" of type "${typeStr}" must have a selection of subfields.` +
+                suggestion,
               { nodes: node },
             ),
           );
